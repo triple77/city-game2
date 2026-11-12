@@ -1,0 +1,76 @@
+name: Build J2ME game
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Download J2ME libraries and ProGuard
+        run: |
+          mkdir -p libs tools
+          curl -fL -o libs/cldc.jar https://repo1.maven.org/maven2/org/microemu/microemu-cldc/2.0.4/microemu-cldc-2.0.4.jar
+          curl -fL -o libs/midp.jar https://repo1.maven.org/maven2/org/microemu/microemu-midp/2.0.4/microemu-midp-2.0.4.jar
+          curl -fL -o tools/proguard.zip https://github.com/Guardsquare/proguard/releases/download/v7.4.2/proguard-7.4.2.zip
+          unzip -q tools/proguard.zip -d tools
+
+      - name: Compile
+        run: |
+          mkdir -p build/classes
+          javac -source 1.3 -target 1.3 -bootclasspath libs/cldc.jar:libs/midp.jar -d build/classes *.java
+
+      - name: Preverify
+        run: |
+          printf '%s\n' \
+            '-injars build/classes' \
+            '-outjars build/pre.jar' \
+            '-libraryjars libs/cldc.jar' \
+            '-libraryjars libs/midp.jar' \
+            '-microedition' \
+            '-dontobfuscate' \
+            '-dontoptimize' \
+            '-dontshrink' \
+            '-dontwarn' \
+            '-keep public class * extends javax.microedition.midlet.MIDlet' > pg.cfg
+          java -jar tools/proguard-7.4.2/lib/proguard.jar @pg.cfg
+
+      - name: Package jar and jad
+        run: |
+          mkdir -p out build/pre
+          cd build/pre
+          unzip -q ../pre.jar
+          rm -rf META-INF
+          cd ../..
+          printf '%s\n' \
+            'Manifest-Version: 1.0' \
+            'MIDlet-1: CityGame,,CityMidlet' \
+            'MIDlet-Name: CityGame' \
+            'MIDlet-Vendor: Me' \
+            'MIDlet-Version: 1.0' \
+            'MicroEdition-Profile: MIDP-2.0' \
+            'MicroEdition-Configuration: CLDC-1.0' > build/manifest.txt
+          jar cfm out/CityGame.jar build/manifest.txt -C build/pre .
+          SIZE=$(stat -c%s out/CityGame.jar)
+          printf '%s\n' \
+            'MIDlet-1: CityGame,,CityMidlet' \
+            'MIDlet-Name: CityGame' \
+            'MIDlet-Vendor: Me' \
+            'MIDlet-Version: 1.0' \
+            'MicroEdition-Profile: MIDP-2.0' \
+            'MicroEdition-Configuration: CLDC-1.0' \
+            'MIDlet-Jar-URL: CityGame.jar' \
+            "MIDlet-Jar-Size: $SIZE" > out/CityGame.jad
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CityGame
+          path: out/
