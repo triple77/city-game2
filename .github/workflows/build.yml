@@ -26,7 +26,7 @@ jobs:
       - name: Compile
         run: |
           mkdir -p build/classes
-          javac -source 1.3 -target 1.3 -bootclasspath libs/cldc.jar:libs/midp.jar -d build/classes *.java
+          javac -source 1.3 -target 1.3 -classpath libs/cldc.jar:libs/midp.jar -d build/classes *.java
 
       - name: Preverify
         run: |
@@ -35,6 +35,7 @@ jobs:
             '-outjars build/pre.jar' \
             '-libraryjars libs/cldc.jar' \
             '-libraryjars libs/midp.jar' \
+            '-libraryjars <java.home>/lib/rt.jar' \
             '-microedition' \
             '-dontobfuscate' \
             '-dontoptimize' \
